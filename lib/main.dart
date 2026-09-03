@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import 'about.dart';
 import 'help_sheet.dart';
 import 'lists_ui.dart';
 import 'qql_client.dart';
@@ -207,6 +208,14 @@ class _ExplorerPageState extends State<ExplorerPage> {
               tooltip: 'Syntax and sources',
               icon: const Icon(Icons.help_outline_rounded),
               onPressed: Scaffold.of(context).openEndDrawer,
+            ),
+          ),
+          IconButton(
+            tooltip: 'About',
+            icon: const Icon(Icons.info_outline_rounded),
+            onPressed: () => showAboutQqlExplorer(
+              context,
+              engineVersion: _client.version,
             ),
           ),
           const SizedBox(width: 12),

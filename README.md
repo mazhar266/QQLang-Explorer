@@ -71,6 +71,13 @@ It is written whole on each change, through a temporary file and a rename, so
 an interrupted write cannot truncate it. A file that will not parse is moved
 aside rather than overwritten.
 
+## About
+
+The ⓘ button in the title bar shows the version, the QQL engine version, and
+who made it. The version there comes from
+[kAppVersion](lib/about.dart) — a test reads `pubspec.yaml` and fails if the
+two drift apart, so there is only ever one number to change.
+
 ## Icon
 
 The mark is the Rub el Hizb, the eight-pointed star used in the mushaf itself
@@ -104,6 +111,7 @@ It writes only under `~/.local/share`, and prints every file it created.
 | [lib/qql_binding.dart](lib/qql_binding.dart) | Vendored copy of the upstream Dart FFI binding — see the header before editing |
 | [lib/sources.dart](lib/sources.dart) | The collection table, and the home screen built from it |
 | [lib/help_sheet.dart](lib/help_sheet.dart) | The syntax and source reference drawer |
+| [lib/about.dart](lib/about.dart) | The About dialog, and the app version |
 | [lib/saved_lists.dart](lib/saved_lists.dart) | Lists, their items, and the JSON file behind them |
 | [lib/lists_ui.dart](lib/lists_ui.dart) | The lists drawer and the bookmark on a result |
 | [tool/make_icon.py](tool/make_icon.py) | Draws the icon for every platform |

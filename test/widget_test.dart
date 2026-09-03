@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qqlang_explorer/about.dart';
 import 'package:qqlang_explorer/main.dart';
 import 'package:qqlang_explorer/result_card.dart';
 import 'package:qqlang_explorer/saved_lists.dart';
@@ -107,6 +108,42 @@ void main() {
 
     expect(find.byType(TextField), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Search'), findsOneWidget);
+  });
+
+  test('the version shown is the version pubspec declares', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final declared = RegExp(
+      r'^version:\s*(\S+)\s*$',
+      multiLine: true,
+    ).firstMatch(pubspec);
+
+    expect(declared, isNotNull, reason: 'pubspec.yaml has no version');
+    // pubspec carries a build number after a +; the app shows the name only.
+    expect(declared!.group(1)!.split('+').first, kAppVersion);
+  });
+
+  testWidgets('the about screen says what it is and who made it', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const QqlExplorerApp());
+
+    await tester.tap(find.byTooltip('About'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('QQL Explorer'), findsWidgets);
+    expect(find.text('Version 1.0.0'), findsOneWidget);
+    expect(find.text('Initiated by'), findsOneWidget);
+    expect(find.text('Mazhar Ahmed'), findsOneWidget);
+    expect(find.text('www.mazhar.fi'), findsOneWidget);
+    expect(find.text('BA in Islamic Studies from IOU'), findsOneWidget);
+    expect(
+      find.text('Dawra-e-Hadith from Qawmi Madrasa, Bangladesh'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, 'Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Initiated by'), findsNothing);
   });
 
   testWidgets('the home screen lists the sources, and a code starts a query', (

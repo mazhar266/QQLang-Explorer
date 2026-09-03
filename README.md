@@ -113,6 +113,12 @@ and writes every platform's files; run it after changing anything there:
 python3 tool/make_icon.py    # needs Pillow
 ```
 
+Android gets a full set: the legacy PNG for old launchers, an adaptive icon
+whose background and mark are separate layers for the launcher to mask and
+shift, and a monochrome layer for Android 13's themed icons. The mark is drawn
+smaller in the adaptive layers than in the legacy tile, sized to sit inside the
+66 dp that every mask keeps.
+
 The Linux runner loads the icon out of the Flutter bundle at startup. That
 reaches the switcher and the dock on X11 only — GTK3 has no window-icon
 protocol on Wayland, where GNOME matches a window to a desktop entry by

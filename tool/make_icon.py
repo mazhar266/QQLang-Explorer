@@ -16,6 +16,7 @@ Outputs
     assets/icon/            what the Linux runner loads at startup
     macos/…/AppIcon.appiconset/
     windows/runner/resources/app_icon.ico
+    android/…/res/mipmap-*/ legacy, adaptive and themed launcher icons
 """
 
 from math import cos, radians, sin
@@ -65,9 +66,14 @@ def _square(cx: float, cy: float, r: float, rotation: float):
     ]
 
 
-def master(radius: float, stroke: float) -> Image.Image:
-    """One master, at the given proportions."""
-    icon = _background()
+def _draw_star(
+    icon: Image.Image,
+    radius: float,
+    stroke: float,
+    colour=GOLD,
+    dot: float | None = None,
+) -> Image.Image:
+    """The Rub el Hizb, centred, onto whatever is already there."""
     draw = ImageDraw.Draw(icon)
     centre = SS / 2
     r = radius * SS
@@ -79,16 +85,24 @@ def master(radius: float, stroke: float) -> Image.Image:
         # without it the corner where the outline meets itself is notched.
         draw.line(
             points + [points[0], points[1]],
-            fill=GOLD,
+            fill=colour,
             width=width,
             joint="curve",
         )
 
-    dot = 0.055 * SS
+    # Defaults to scaling with the star; the desktop masters pin it instead,
+    # because a proportionally smaller dot is harder to make out at 16 px.
+    r_dot = (dot if dot is not None else (0.055 / 0.315) * radius) * SS
     draw.ellipse(
-        [centre - dot, centre - dot, centre + dot, centre + dot], fill=GOLD
+        [centre - r_dot, centre - r_dot, centre + r_dot, centre + r_dot],
+        fill=colour,
     )
     return icon
+
+
+def master(radius: float, stroke: float) -> Image.Image:
+    """One master, at the given proportions."""
+    return _draw_star(_background(), radius, stroke, dot=0.055)
 
 
 # Below about 32 pixels the thin proportions silt up, so small sizes come
@@ -106,6 +120,88 @@ def write(path: Path, size: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     render(size).save(path)
     print(f"  {path.relative_to(ROOT)}  {size}px")
+
+
+# --- Android ----------------------------------------------------------------
+#
+# Two things are needed. The legacy PNG is what pre-Oreo launchers draw, and
+# an adaptive icon is what everything since draws: two full-bleed layers the
+# launcher masks to its own shape and shifts for parallax. The mask can take
+# as much as the outer 18 of 108 dp, so the mark is drawn smaller here than in
+# the legacy tile, sized to land inside the 66 dp that is always visible.
+#
+# A monochrome layer comes along for Android 13's themed icons, which tint one
+# silhouette to the wallpaper; without it a themed launcher shows the whole
+# coloured icon shrunk inside a circle.
+
+ANDROID_RES = ROOT / "android/app/src/main/res"
+
+# Density suffix to scale factor. Adaptive layers are 108 dp square.
+DENSITIES = {"mdpi": 1, "hdpi": 1.5, "xhdpi": 2, "xxhdpi": 3, "xxxhdpi": 4}
+
+# Proportions for the adaptive layers: 0.42 of 108 dp is 45 dp, which is the
+# same share of the visible area that 0.63 is of the legacy tile.
+ADAPTIVE_RADIUS = 0.21
+ADAPTIVE_STROKE = 0.032
+
+ADAPTIVE_XML = """<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
+</adaptive-icon>
+"""
+
+
+def _full_bleed_background() -> Image.Image:
+    """The gradient without the rounded corners — the launcher does the mask."""
+    gradient = Image.new("RGB", (1, SS))
+    for y in range(SS):
+        t = y / (SS - 1)
+        gradient.putpixel(
+            (0, y),
+            tuple(int(a + (b - a) * t) for a, b in zip(TEAL_TOP, TEAL_BOTTOM)),
+        )
+    return gradient.resize((SS, SS)).convert("RGBA")
+
+
+def android() -> None:
+    print("Android")
+
+    # Legacy launcher icon, at the same proportions as every other platform.
+    for density, scale in DENSITIES.items():
+        size = int(48 * scale)
+        write(ANDROID_RES / f"mipmap-{density}/ic_launcher.png", size)
+
+    layers = {
+        "ic_launcher_background": _full_bleed_background(),
+        "ic_launcher_foreground": _draw_star(
+            Image.new("RGBA", (SS, SS), (0, 0, 0, 0)),
+            ADAPTIVE_RADIUS,
+            ADAPTIVE_STROKE,
+        ),
+        # Tinted by the launcher, so only the shape matters.
+        "ic_launcher_monochrome": _draw_star(
+            Image.new("RGBA", (SS, SS), (0, 0, 0, 0)),
+            ADAPTIVE_RADIUS,
+            ADAPTIVE_STROKE,
+            colour=(255, 255, 255, 255),
+        ),
+    }
+
+    for density, scale in DENSITIES.items():
+        size = int(108 * scale)
+        for name, layer in layers.items():
+            path = ANDROID_RES / f"mipmap-{density}/{name}.png"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            layer.resize((size, size), Image.LANCZOS).save(path)
+        print(f"  mipmap-{density}/ 3 adaptive layers  {size}px")
+
+    anydpi = ANDROID_RES / "mipmap-anydpi-v26"
+    anydpi.mkdir(parents=True, exist_ok=True)
+    for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
+        (anydpi / name).write_text(ADAPTIVE_XML)
+        print(f"  {(anydpi / name).relative_to(ROOT)}")
 
 
 def main() -> None:
@@ -131,6 +227,8 @@ def main() -> None:
         append_images=frames[1:],
     )
     print(f"  {ico.relative_to(ROOT)}  {[f.width for f in frames]}")
+
+    android()
 
 
 if __name__ == "__main__":

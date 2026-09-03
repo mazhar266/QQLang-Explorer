@@ -109,6 +109,28 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Search'), findsOneWidget);
   });
 
+  testWidgets('the home screen lists the sources, and a code starts a query', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const QqlExplorerApp());
+
+    // Every collection is on the page, not just the ones that happen to fit
+    // on screen: the tiles are one Wrap, so they all build.
+    expect(find.text('Quran'), findsOneWidget);
+    expect(find.text('Sahih al-Bukhari'), findsOneWidget);
+    expect(find.text('Hisnul Muslim'), findsOneWidget);
+    expect(find.text('Surah 1–114  ·  ::1–6236'), findsOneWidget);
+    expect(find.text('kitab 1–97  ·  ::1–7563'), findsOneWidget);
+    // The six with no citation numbering show no :: range.
+    expect(find.text('chapter 1–19'), findsOneWidget);
+
+    await tester.tap(find.text('Sahih al-Bukhari'));
+    await tester.pump();
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, 'B:');
+  });
+
   testWidgets('a saved list can be opened, read and pruned', (tester) async {
     // A temporary file, so a test run cannot touch real saved research.
     final directory = Directory.systemTemp.createTempSync('qql_ui_test');

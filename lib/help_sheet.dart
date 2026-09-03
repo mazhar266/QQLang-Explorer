@@ -5,27 +5,7 @@
 
 import 'package:flutter/material.dart';
 
-/// Source codes, as `qql --sources` lists them.
-const _sources = [
-  ('Q', 'Quran', 'Surah 1–114'),
-  ('B', 'Sahih al-Bukhari', 'chapter (kitab)'),
-  ('M', 'Sahih Muslim', 'chapter'),
-  ('AD', 'Sunan Abi Dawud', 'chapter'),
-  ('T', "Jami' at-Tirmidhi", 'chapter'),
-  ('N', "Sunan an-Nasa'i", 'chapter'),
-  ('IM', 'Sunan Ibn Majah', 'chapter'),
-  ('MA', 'Muwatta Malik', 'chapter'),
-  ('DA', 'Sunan ad-Darimi', 'chapter, Arabic only'),
-  ('RS', 'Riyad as-Salihin', 'chapter'),
-  ('BM', 'Bulugh al-Maram', 'chapter'),
-  ('AM', 'Al-Adab Al-Mufrad', 'chapter'),
-  ('MK', 'Mishkat al-Masabih', 'chapter'),
-  ('SM', "Ash-Shama'il Al-Muhammadiyah", 'chapter'),
-  ('NW', "Al-Arba'in an-Nawawiyyah", 'one chapter, 1–42'),
-  ('QD', 'Forty Hadith Qudsi', 'one chapter, 1–40'),
-  ('SW', 'Forty Hadith of Shah Waliullah', 'one chapter, 1–40'),
-  ('HM', 'Hisnul Muslim', 'chapter 1–132'),
-];
+import 'sources.dart';
 
 /// Syntax, as `(form, what it means)`.
 const _syntax = [
@@ -75,8 +55,12 @@ class HelpDrawer extends StatelessWidget {
               _Row(mono: form, text: meaning),
             const SizedBox(height: 24),
             _SectionTitle('Sources'),
-            for (final (code, name, primary) in _sources)
-              _Row(mono: code, text: name, trailing: primary),
+            for (final source in kSources)
+              _Row(
+                mono: source.code,
+                text: source.name,
+                trailing: source.summary,
+              ),
             const SizedBox(height: 24),
             Text(
               'Ranked search needs the library built with the vector and '

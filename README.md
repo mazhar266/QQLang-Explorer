@@ -38,9 +38,16 @@ The built binary takes an optional query to run at startup:
 ## Queries
 
 `Q:2:255` is Surah 2 ayah 255. The source is optional and the Quran is
-assumed, so `2:255` is the same query. The in-app reference — the `?` button —
-lists the syntax and every source code. The full grammar is in the QQ Lang
-README.
+assumed, so `2:255` is the same query.
+
+Before anything has been run, the window lists the eighteen collections with
+their code, what their first index means, and the range it runs over; picking
+one starts a query with that code. The `?` button adds the syntax to that.
+The full grammar is in the QQ Lang README.
+
+The table is transcribed in [lib/sources.dart](lib/sources.dart) from the
+[Sources wiki page](https://github.com/mazhar266/QQ-Lang/wiki/Sources), and
+its ranges were checked against the data.
 
 ## Lists
 
@@ -95,6 +102,7 @@ It writes only under `~/.local/share`, and prints every file it created.
 | [lib/result_card.dart](lib/result_card.dart) | One record. Records have no fixed shape, so known fields are laid out and the rest becomes chips |
 | [lib/qql_client.dart](lib/qql_client.dart) | Finds the checkout, holds one context, times each query |
 | [lib/qql_binding.dart](lib/qql_binding.dart) | Vendored copy of the upstream Dart FFI binding — see the header before editing |
+| [lib/sources.dart](lib/sources.dart) | The collection table, and the home screen built from it |
 | [lib/help_sheet.dart](lib/help_sheet.dart) | The syntax and source reference drawer |
 | [lib/saved_lists.dart](lib/saved_lists.dart) | Lists, their items, and the JSON file behind them |
 | [lib/lists_ui.dart](lib/lists_ui.dart) | The lists drawer and the bookmark on a result |

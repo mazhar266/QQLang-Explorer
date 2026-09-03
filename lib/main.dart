@@ -11,6 +11,7 @@ import 'lists_ui.dart';
 import 'qql_client.dart';
 import 'result_card.dart';
 import 'saved_lists.dart';
+import 'sources.dart';
 
 void main(List<String> args) {
   // `qqlang_explorer 'Q:2:255'` opens with that query already run.
@@ -135,6 +136,18 @@ class _ExplorerPageState extends State<ExplorerPage> {
     });
 
     if (_scroll.hasClients) _scroll.jumpTo(0);
+    _focus.requestFocus();
+  }
+
+  /// Put a source code in the field and leave the caret after it, ready for
+  /// the reference. Deliberately does not run: `Q:` is not yet a query.
+  void _startWith(String code) {
+    setState(() {
+      _controller.text = '$code:';
+      _controller.selection = TextSelection.collapsed(
+        offset: _controller.text.length,
+      );
+    });
     _focus.requestFocus();
   }
 
@@ -314,17 +327,10 @@ class _ExplorerPageState extends State<ExplorerPage> {
       );
     }
 
+    // Nothing run yet: show what there is to query rather than prose about
+    // how to query it.
     final outcome = _outcome;
-    if (outcome == null) {
-      return _Notice(
-        icon: Icons.search_rounded,
-        title: 'Write a reference, or pick one above',
-        detail:
-            'Q:2:255 is Surah 2 ayah 255. The source is optional and the '
-            'Quran is assumed, so 2:255 is the same query.',
-        tone: theme.colorScheme.onSurfaceVariant,
-      );
-    }
+    if (outcome == null) return SourcesPanel(onPick: _startWith);
 
     return switch (outcome) {
       QueryFailed() => SingleChildScrollView(

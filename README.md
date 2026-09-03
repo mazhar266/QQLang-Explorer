@@ -3,25 +3,39 @@
 A desktop front end for [QQ Lang](https://github.com/mazhar266/QQ-Lang): type a
 query, press Search, read the records it resolves to.
 
-## Prerequisites
+## The QQL runtime
 
-The app carries no data of its own. It loads the QQL native library and reads
-the JSON sources from a QQ Lang checkout:
+The app ships QQL with it. `third_party/qql` holds the shared library and the
+JSON data the resolvers read, taken from a
+[QQ Lang release](https://github.com/mazhar266/QQ-Lang/releases) — no QQ Lang
+checkout, no cargo, no build step.
 
-```bash
-cd ~/Projects/QQ\ Lang
-cargo build --release --features vector,fulltext
-```
-
-The `vector` and `fulltext` features are optional. Without them the app still
-works; the ranked forms `*"…"` and `?"…"` are refused with `QQL_UNSUPPORTED`
-rather than quietly matching something else.
-
-`~/Projects/QQ Lang` is assumed. Set `QQL_HOME` to point elsewhere:
+The payload is about 129 MB, so it is **not committed**; `VERSION` and
+`LICENSE.md` are, which is what records the release the repo expects. Fetch
+the rest:
 
 ```bash
-QQL_HOME=/path/to/QQ-Lang flutter run -d linux
+tool/fetch-qql.sh                     # the version in third_party/qql/VERSION
+tool/fetch-qql.sh 3.2.0               # a specific release
+tool/fetch-qql.sh 3.2.0 aarch64-macos # a specific platform
 ```
+
+It takes the shared library and `sources/` only — not the 51 MB static
+library, which is for linking on iOS, nor the CLI binaries, which this app
+never runs.
+
+Releases are built with `vector` and `fulltext` on, so the ranked forms
+`*"…"` and `?"…"` work. A library built without them refuses those with
+`QQL_UNSUPPORTED` rather than quietly matching something else.
+
+### Where it is looked for
+
+1. `$QQL_HOME` — an unpacked release bundle, to try another build in place
+2. `qql/` beside the executable — where a built app carries it
+3. `third_party/qql` — the checkout, for `flutter run` and the tests
+
+`flutter build linux` installs the runtime into the bundle, so the built app
+runs from anywhere rather than only from a checkout.
 
 ## Run
 
@@ -76,13 +90,8 @@ aside rather than overwritten.
 The ⓘ button in the title bar shows the version, the QQL engine version, and
 who made it.
 
-QQL's version is its **git tag**, not the number in its `Cargo.toml` — that
-trails behind, and it is what a library built from a working checkout reports
-through `qql_version()`. So the tag on the checkout is read first and the
-library's own answer is the fallback. When the two disagree the About screen
-says so, which is the sign of a build older than the checkout. The version there comes from
-[kAppVersion](lib/about.dart) — a test reads `pubspec.yaml` and fails if the
-two drift apart, so there is only ever one number to change.
+The QQL version shown there is what the bundled library reports for itself
+through `qql_version()`.
 
 ## Icon
 
@@ -120,5 +129,7 @@ It writes only under `~/.local/share`, and prints every file it created.
 | [lib/about.dart](lib/about.dart) | The About dialog, and the app version |
 | [lib/saved_lists.dart](lib/saved_lists.dart) | Lists, their items, and the JSON file behind them |
 | [lib/lists_ui.dart](lib/lists_ui.dart) | The lists drawer and the bookmark on a result |
+| [third_party/qql/](third_party/qql/) | The vendored QQL library and data |
+| [tool/fetch-qql.sh](tool/fetch-qql.sh) | Fetches that runtime from a release |
 | [tool/make_icon.py](tool/make_icon.py) | Draws the icon for every platform |
 | [tool/install-desktop-entry.sh](tool/install-desktop-entry.sh) | User-level desktop entry, for the icon on Wayland |

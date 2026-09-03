@@ -46,3 +46,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Vendored QQL runtime, ~129 MB, fetched by tool/fetch-qql.sh.
+# third_party/qql/VERSION and LICENSE.md stay tracked, so the repo records
+# which release it expects. Delete these two lines to commit the payload.
+/third_party/qql/lib/
+/third_party/qql/sources/

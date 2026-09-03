@@ -19,29 +19,20 @@ const _credentials = [
   'Dawra-e-Hadith from Qawmi Madrasa, Bangladesh',
 ];
 
-/// Show the About dialog.
-///
-/// [engineVersion] is QQL's version, which is a different thing from the
-/// app's. [libraryVersion] is what the loaded library reports for itself:
-/// when it disagrees with the tag, the build is behind the checkout and
-/// saying so beats quietly showing one number.
+/// Show the About dialog. [engineVersion] is the version the bundled QQL
+/// library reports for itself, which is a different thing from the app's.
 Future<void> showAboutQqlExplorer(
   BuildContext context, {
   String? engineVersion,
-  String? libraryVersion,
 }) => showDialog<void>(
   context: context,
-  builder: (context) => _AboutDialog(
-    engineVersion: engineVersion,
-    libraryVersion: libraryVersion,
-  ),
+  builder: (context) => _AboutDialog(engineVersion: engineVersion),
 );
 
 class _AboutDialog extends StatelessWidget {
-  const _AboutDialog({this.engineVersion, this.libraryVersion});
+  const _AboutDialog({this.engineVersion});
 
   final String? engineVersion;
-  final String? libraryVersion;
 
   @override
   Widget build(BuildContext context) {
@@ -92,14 +83,6 @@ class _AboutDialog extends StatelessWidget {
                           'QQL engine $engineVersion',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: colors.outline,
-                          ),
-                        ),
-                      if (libraryVersion != null &&
-                          libraryVersion != engineVersion)
-                        Text(
-                          'loaded library reports $libraryVersion',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colors.error,
                           ),
                         ),
                     ],

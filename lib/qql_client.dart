@@ -1,33 +1,72 @@
-// Locating the QQ Lang build, and running queries against it.
+// Locating the vendored QQL runtime, and running queries against it.
 //
-// The native library and the JSON data both live in the QQ Lang checkout
-// rather than in this app, so the one thing worth being careful about is
-// where that checkout is and what to say when it is not there.
+// The library and the JSON data are shipped with this app rather than read
+// out of a QQ Lang checkout, so the only interesting part is finding the
+// bundle: it sits beside the executable in a built app and in third_party/
+// when running from the repository.
 
 import 'dart:io';
 
 import 'qql_binding.dart';
 
-/// Paths into the QQ Lang checkout.
-///
-/// `QQL_HOME` overrides the location; otherwise the sibling checkout under
-/// `~/Projects` is assumed, which is where it lives during development.
-class QqlPaths {
-  static String get home =>
-      Platform.environment['QQL_HOME'] ?? '$_userHome/Projects/QQ Lang';
+/// A QQL runtime bundle: `lib/` beside `sources/`, as the release tarballs
+/// from https://github.com/mazhar266/QQ-Lang/releases are laid out.
+class QqlBundle {
+  const QqlBundle(this.root);
 
-  /// The release build of the C ABI library.
-  static String get library {
-    if (Platform.isWindows) return '$home\\target\\release\\qql.dll';
-    if (Platform.isMacOS) return '$home/target/release/libqql.dylib';
-    return '$home/target/release/libqql.so';
+  /// The directory holding `lib/` and `sources/`.
+  final String root;
+
+  String get library {
+    final name = Platform.isWindows
+        ? 'qql.dll'
+        : Platform.isMacOS
+        ? 'libqql.dylib'
+        : 'libqql.so';
+    return '$root${Platform.pathSeparator}lib${Platform.pathSeparator}$name';
   }
 
-  /// The JSON data directory the context reads.
-  static String get sources => '$home${Platform.pathSeparator}sources';
+  String get sources => '$root${Platform.pathSeparator}sources';
 
-  static String get _userHome =>
-      Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
+  /// The version recorded when the bundle was vendored. Advisory only — the
+  /// library is asked for its own version once it is open.
+  String? get recordedVersion {
+    final file = File('$root${Platform.pathSeparator}VERSION');
+    if (!file.existsSync()) return null;
+    final text = file.readAsStringSync().trim();
+    return text.isEmpty ? null : text;
+  }
+
+  bool get isComplete =>
+      File(library).existsSync() && Directory(sources).existsSync();
+
+  /// Where the runtime is looked for, in order.
+  ///
+  /// `QQL_HOME` first so a different build can be tried without moving files
+  /// about; then beside the executable, which is where a built app carries
+  /// it; then the checkout, which is what `flutter run` and the tests use.
+  static List<QqlBundle> candidates() {
+    final beside = File(Platform.resolvedExecutable).parent.path;
+
+    return [
+      ?_fromEnvironment(),
+      QqlBundle('$beside${Platform.pathSeparator}qql'),
+      const QqlBundle('third_party/qql'),
+    ];
+  }
+
+  /// The first candidate that is actually there, or null.
+  static QqlBundle? locate() {
+    for (final candidate in candidates()) {
+      if (candidate.isComplete) return candidate;
+    }
+    return null;
+  }
+
+  static QqlBundle? _fromEnvironment() {
+    final home = Platform.environment['QQL_HOME'];
+    return (home == null || home.isEmpty) ? null : QqlBundle(home);
+  }
 }
 
 /// What a query produced.
@@ -67,17 +106,11 @@ class QqlClient {
   /// Why the library could not be opened, if it could not be.
   String? openError;
 
-  /// The QQL version to show, once open.
-  ///
-  /// QQ Lang versions by git tag. The number in Cargo.toml trails behind the
-  /// tags, and that number is what `qql_version()` returns — so a library
-  /// built from a working checkout under-reports. The tag on the checkout is
-  /// therefore the answer, and the library's own is the fallback.
+  /// The version the library reports for itself, once open.
   String? version;
 
-  /// What the loaded library reports for itself, which is not always [version]
-  /// — a stale build says so here.
-  String? libraryVersion;
+  /// The bundle in use, once found.
+  QqlBundle? bundle;
 
   bool get isOpen => _qql != null;
 
@@ -85,52 +118,25 @@ class QqlClient {
   void open() {
     if (_qql != null) return;
 
-    final library = File(QqlPaths.library);
-    if (!library.existsSync()) {
+    final found = QqlBundle.locate();
+    if (found == null) {
       openError =
-          'No QQL library at ${QqlPaths.library}\n\n'
-          'Build it from the QQ Lang checkout:\n'
-          '    cargo build --release --features vector,fulltext\n\n'
-          'Or point QQL_HOME at a different checkout.';
-      return;
-    }
-    if (!Directory(QqlPaths.sources).existsSync()) {
-      openError = 'No data directory at ${QqlPaths.sources}';
+          'No QQL runtime found. Looked in:\n\n'
+          '${QqlBundle.candidates().map((c) => '    ${c.root}').join('\n')}\n\n'
+          'Fetch it with:\n'
+          '    tool/fetch-qql.sh\n\n'
+          'Or point QQL_HOME at an unpacked release bundle.';
       return;
     }
 
     try {
-      final qql = Qql.open(QqlPaths.sources, libraryPath: QqlPaths.library);
-      libraryVersion = qql.version;
-      version = _taggedVersion() ?? libraryVersion;
+      final qql = Qql.open(found.sources, libraryPath: found.library);
+      version = qql.version;
+      bundle = found;
       _qql = qql;
       openError = null;
     } catch (e) {
-      openError = 'Could not open the QQL library:\n\n$e';
-    }
-  }
-
-  /// The version tag on the QQ Lang checkout, without its leading `v`.
-  ///
-  /// Null when the checkout has no git, no tags, or no git at all on the
-  /// machine — none of which is worth an error, since the library can still
-  /// answer for itself.
-  static String? _taggedVersion() {
-    try {
-      final result = Process.runSync('git', [
-        '-C',
-        QqlPaths.home,
-        'describe',
-        '--tags',
-        '--abbrev=0',
-      ]);
-      if (result.exitCode != 0) return null;
-
-      final tag = '${result.stdout}'.trim();
-      if (tag.isEmpty) return null;
-      return tag.startsWith('v') ? tag.substring(1) : tag;
-    } catch (_) {
-      return null;
+      openError = 'Could not open ${found.library}:\n\n$e';
     }
   }
 

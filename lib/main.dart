@@ -225,7 +225,6 @@ class _ExplorerPageState extends State<ExplorerPage> {
             onPressed: () => showAboutQqlExplorer(
               context,
               engineVersion: _client.version,
-              libraryVersion: _client.libraryVersion,
             ),
           ),
           const SizedBox(width: 12),
@@ -236,7 +235,10 @@ class _ExplorerPageState extends State<ExplorerPage> {
         openListId: _openListId,
         onOpen: (id) => setState(() => _openListId = id),
       ),
-      endDrawer: HelpDrawer(version: _client.version, home: QqlPaths.home),
+      endDrawer: HelpDrawer(
+        version: _client.version,
+        home: _client.bundle?.root ?? 'no runtime found',
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 940),

@@ -126,3 +126,18 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# The QQL runtime — the shared library and the JSON data the resolvers read.
+# It goes beside the executable so the bundle runs anywhere, rather than only
+# from a checkout. tool/fetch-qql.sh puts it in third_party/qql; when it is
+# missing the app says so at startup instead of the build failing here.
+set(QQL_RUNTIME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/qql")
+if(EXISTS "${QQL_RUNTIME_DIR}/sources")
+  install(DIRECTORY "${QQL_RUNTIME_DIR}/"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/qql"
+    COMPONENT Runtime)
+else()
+  message(WARNING
+    "No QQL runtime at ${QQL_RUNTIME_DIR} — run tool/fetch-qql.sh. "
+    "The app will build but will not resolve queries.")
+endif()

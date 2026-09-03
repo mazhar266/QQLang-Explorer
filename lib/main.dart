@@ -1,121 +1,474 @@
+// QQL Explorer — a text field, a search button, and the records QQL returns.
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'help_sheet.dart';
+import 'qql_client.dart';
+import 'result_card.dart';
+
+void main(List<String> args) {
+  // `qqlang_explorer 'Q:2:255'` opens with that query already run.
+  runApp(QqlExplorerApp(initialQuery: args.isEmpty ? null : args.first));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+/// Query forms worth one click, chosen to reach every kind of result the app
+/// can render: a single ayah, a whole surah, hadith, both ranked engines, and
+/// a query that crosses collections.
+const _examples = [
+  ('Q:2:255', 'Ayat al-Kursi'),
+  ('Q:1', 'Al-Fatihah'),
+  ('B:1:1', 'Bukhari, the first hadith'),
+  ('q:1:"الحمد"', 'Arabic substring'),
+  ('q:?"mercy"~5', 'ranked full text'),
+  ('q:*"worship"~5', 'ranked similarity'),
+  ('HM:1', 'Hisnul Muslim'),
+  ('2:255;B:1:1', 'two collections at once'),
+];
 
-  // This widget is the root of your application.
+class QqlExplorerApp extends StatelessWidget {
+  const QqlExplorerApp({super.key, this.initialQuery});
+
+  /// Query to run on launch, if one was given on the command line.
+  final String? initialQuery;
+
+  ThemeData _theme(Brightness brightness) {
+    final colors = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF00695C),
+      brightness: brightness,
+    );
+    return ThemeData(
+      colorScheme: colors,
+      scaffoldBackgroundColor: colors.surface,
+      useMaterial3: true,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'QQL Explorer',
+      debugShowCheckedModeBanner: false,
+      theme: _theme(Brightness.light),
+      darkTheme: _theme(Brightness.dark),
+      home: ExplorerPage(initialQuery: initialQuery),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class ExplorerPage extends StatefulWidget {
+  const ExplorerPage({super.key, this.initialQuery});
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  final String? initialQuery;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<ExplorerPage> createState() => _ExplorerPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _ExplorerPageState extends State<ExplorerPage> {
+  final _client = QqlClient();
+  final _controller = TextEditingController();
+  final _focus = FocusNode();
+  final _scroll = ScrollController();
 
-  void _incrementCounter() {
+  QueryOutcome? _outcome;
+
+  /// The query [_outcome] came from, which is not necessarily what the field
+  /// holds now.
+  String _ranQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _client.open();
+
+    // Assigned rather than routed through `_search`, so the results are
+    // there on the first frame instead of after an empty one.
+    final initial = widget.initialQuery?.trim();
+    if (initial != null && initial.isNotEmpty) {
+      _controller.text = initial;
+      _ranQuery = initial;
+      _outcome = _client.run(initial);
+    }
+  }
+
+  @override
+  void dispose() {
+    _client.dispose();
+    _controller.dispose();
+    _focus.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _search([String? query]) {
+    if (query != null) _controller.text = query;
+
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _ranQuery = text;
+      _outcome = _client.run(text);
     });
+
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+    _focus.requestFocus();
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
+        backgroundColor: theme.colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 24,
+        title: Row(
           children: [
-            const Text('You have pushed the button this many times:'),
             Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+              'QQL Explorer',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
+            const SizedBox(width: 10),
+            if (_client.version != null)
+              Text(
+                'qql ${_client.version}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
           ],
         ),
+        actions: [
+          Builder(
+            builder: (context) => IconButton(
+              tooltip: 'Syntax and sources',
+              icon: const Icon(Icons.help_outline_rounded),
+              onPressed: Scaffold.of(context).openEndDrawer,
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+      endDrawer: HelpDrawer(version: _client.version, home: QqlPaths.home),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 940),
+          child: Column(
+            children: [
+              _buildSearchBar(theme),
+              const Divider(height: 1),
+              Expanded(child: _buildBody(theme)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focus,
+                  autofocus: true,
+                  enabled: _client.isOpen,
+                  onSubmitted: (_) => _search(),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 15,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Q:2:255',
+                    prefixIcon: const Icon(Icons.terminal_rounded, size: 20),
+                    suffixIcon: _controller.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Clear',
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            onPressed: () => setState(_controller.clear),
+                          ),
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  // Redraws so the clear button appears with the first
+                  // character and leaves with the last.
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: _client.isOpen ? _search : null,
+                icon: const Icon(Icons.search_rounded, size: 20),
+                label: const Text('Search'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (query, description) in _examples)
+                Tooltip(
+                  message: description,
+                  child: ActionChip(
+                    label: Text(
+                      query,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _client.isOpen ? () => _search(query) : null,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(ThemeData theme) {
+    if (!_client.isOpen) {
+      return _Notice(
+        icon: Icons.link_off_rounded,
+        title: 'QQL library not loaded',
+        detail: _client.openError ?? '',
+        tone: theme.colorScheme.error,
+      );
+    }
+
+    final outcome = _outcome;
+    if (outcome == null) {
+      return _Notice(
+        icon: Icons.search_rounded,
+        title: 'Write a reference, or pick one above',
+        detail:
+            'Q:2:255 is Surah 2 ayah 255. The source is optional and the '
+            'Quran is assumed, so 2:255 is the same query.',
+        tone: theme.colorScheme.onSurfaceVariant,
+      );
+    }
+
+    return switch (outcome) {
+      QueryFailed() => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+        child: _ErrorCard(failure: outcome, query: _ranQuery),
+      ),
+      QueryOk(records: final records, elapsed: final elapsed) =>
+        records.isEmpty
+            ? _Notice(
+                icon: Icons.filter_none_rounded,
+                title: 'No matches',
+                detail:
+                    'The query resolved, and nothing in scope matched. A '
+                    'search that finds nothing is an empty result, not an '
+                    'error.',
+                tone: theme.colorScheme.onSurfaceVariant,
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ResultSummary(count: records.length, elapsed: elapsed),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: _scroll,
+                      padding: const EdgeInsets.fromLTRB(24, 4, 24, 40),
+                      itemCount: records.length,
+                      itemBuilder: (context, i) =>
+                          ResultCard(record: records[i], index: i),
+                    ),
+                  ),
+                ],
+              ),
+    };
+  }
+}
+
+class _ResultSummary extends StatelessWidget {
+  const _ResultSummary({required this.count, required this.elapsed});
+
+  final int count;
+  final Duration elapsed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(26, 14, 26, 6),
+      child: Text(
+        '$count ${count == 1 ? 'result' : 'results'}'
+        '  ·  ${elapsed.inMilliseconds} ms',
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+/// A refused query, with the caret under the character QQL objected to.
+class _ErrorCard extends StatelessWidget {
+  const _ErrorCard({required this.failure, required this.query});
+
+  final QueryFailed failure;
+  final String query;
+
+  /// QQL reports a byte offset; the caret has to go under a character.
+  static int? _charOffset(String query, int? bytePosition) {
+    if (bytePosition == null || bytePosition < 0) return null;
+    final bytes = utf8.encode(query);
+    if (bytePosition > bytes.length) return null;
+    try {
+      return utf8.decode(bytes.sublist(0, bytePosition)).length;
+    } on FormatException {
+      // The offset landed mid-character; no caret is better than a wrong one.
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final caret = _charOffset(query, failure.position);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.errorContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.error.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.error_outline_rounded, size: 18, color: colors.error),
+              const SizedBox(width: 8),
+              SelectableText(
+                failure.code,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: colors.error,
+                ),
+              ),
+              if (failure.position != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  'at ${failure.position}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          SelectableText(
+            failure.message,
+            style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+          ),
+          if (caret != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                '$query\n${' ' * caret}^',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13.5,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The empty, unloaded and no-match states, which differ only in wording.
+class _Notice extends StatelessWidget {
+  const _Notice({
+    required this.icon,
+    required this.title,
+    required this.detail,
+    required this.tone,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 40, color: tone.withValues(alpha: 0.7)),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(color: tone),
+              ),
+              const SizedBox(height: 10),
+              SelectableText(
+                detail,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.6,
+                  fontFamily: detail.contains('cargo build') ? 'monospace' : null,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

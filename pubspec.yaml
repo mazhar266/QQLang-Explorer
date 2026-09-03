@@ -35,6 +35,9 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Used by the vendored QQL FFI binding in lib/qql_binding.dart.
+  ffi: ^2.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

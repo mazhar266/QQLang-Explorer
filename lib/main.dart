@@ -87,6 +87,11 @@ class _ExplorerPageState extends State<ExplorerPage> {
 
   QueryOutcome? _outcome;
 
+  /// Null until the runtime is open. On Android the first launch after an
+  /// install writes ~120 MB out of the APK, which is worth showing.
+  ({int done, int total})? _unpacking;
+  bool _opening = true;
+
   /// The saved list being read instead of the results, if any.
   String? _openListId;
 
@@ -97,20 +102,33 @@ class _ExplorerPageState extends State<ExplorerPage> {
   @override
   void initState() {
     super.initState();
-    _client.open();
     // Only a store this page made is a store this page may dispose.
     _ownsLists = widget.lists == null;
     _lists = widget.lists ?? SavedLists();
     _lists.load();
 
-    // Assigned rather than routed through `_search`, so the results are
-    // there on the first frame instead of after an empty one.
+    _start();
+  }
+
+  /// Open the runtime, then run the launch query if there was one.
+  Future<void> _start() async {
+    await _client.open(
+      onProgress: (done, total) {
+        if (mounted) setState(() => _unpacking = (done: done, total: total));
+      },
+    );
+    if (!mounted) return;
+
     final initial = widget.initialQuery?.trim();
-    if (initial != null && initial.isNotEmpty) {
-      _controller.text = initial;
-      _ranQuery = initial;
-      _outcome = _client.run(initial);
-    }
+    setState(() {
+      _opening = false;
+      _unpacking = null;
+      if (initial != null && initial.isNotEmpty) {
+        _controller.text = initial;
+        _ranQuery = initial;
+        _outcome = _client.run(initial);
+      }
+    });
   }
 
   @override
@@ -237,7 +255,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
       ),
       endDrawer: HelpDrawer(
         version: _client.version,
-        home: _client.bundle?.root ?? 'no runtime found',
+        home: _client.dataDirectory ?? 'no runtime found',
       ),
       body: Center(
         child: ConstrainedBox(
@@ -336,6 +354,8 @@ class _ExplorerPageState extends State<ExplorerPage> {
   }
 
   Widget _buildBody(ThemeData theme) {
+    if (_opening) return _Opening(progress: _unpacking);
+
     final openList = _lists.byId(_openListId);
     if (openList != null) return _buildSavedList(theme, openList);
 
@@ -632,6 +652,70 @@ class _Notice extends StatelessWidget {
                   fontFamily: detail.contains('cargo build') ? 'monospace' : null,
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The wait before the first query can be run.
+///
+/// On desktop this is a frame or two. On Android's first launch after an
+/// install it is the ~120 MB of data being written out of the APK, which
+/// takes long enough that saying nothing would look like a hang.
+class _Opening extends StatelessWidget {
+  const _Opening({required this.progress});
+
+  final ({int done, int total})? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final unpacking = progress;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (unpacking == null)
+                const CircularProgressIndicator()
+              else ...[
+                Text(
+                  'Preparing the collections',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Once, after installing.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: unpacking.total == 0
+                        ? null
+                        : unpacking.done / unpacking.total,
+                    minHeight: 6,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '${unpacking.done} of ${unpacking.total} files',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

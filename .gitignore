@@ -52,3 +52,4 @@ app.*.map.json
 # which release it expects. Delete these two lines to commit the payload.
 /third_party/qql/lib/
 /third_party/qql/sources/
+/third_party/qql/android/

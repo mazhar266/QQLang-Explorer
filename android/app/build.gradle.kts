@@ -9,6 +9,11 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    // The QQL shared library, cross-compiled per ABI and vendored alongside
+    // the desktop one. Gradle packages whatever it finds here, and the loader
+    // then answers DynamicLibrary.open("libqql.so") by name.
+    sourceSets["main"].jniLibs.srcDirs("../../third_party/qql/android")
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

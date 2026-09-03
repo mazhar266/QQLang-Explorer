@@ -5,37 +5,47 @@ query, press Search, read the records it resolves to.
 
 ## The QQL runtime
 
-The app ships QQL with it. `third_party/qql` holds the shared library and the
-JSON data the resolvers read, taken from a
-[QQ Lang release](https://github.com/mazhar266/QQ-Lang/releases) — no QQ Lang
-checkout, no cargo, no build step.
+The app ships QQL with it — no QQ Lang checkout, no cargo, at least not to
+run it. The pieces live under `third_party/qql`:
 
-The payload is about 129 MB, so it is **not committed**; `VERSION` and
-`LICENSE.md` are, which is what records the release the repo expects. Fetch
-the rest:
+| | From | |
+| --- | --- | --- |
+| `lib/` | a [release](https://github.com/mazhar266/QQ-Lang/releases) | the desktop shared library |
+| `android/<abi>/` | built from source | the same library per Android ABI |
+| `sources/` | a release | 123 MB of JSON, indexes and vectors |
+| `VERSION`, `LICENSE.md` | | the release this repo expects, and its licence |
+
+The payload is about 140 MB, so it is **not committed** — `VERSION` and
+`LICENSE.md` are, which is what records the release. Fetch and build it:
 
 ```bash
-tool/fetch-qql.sh                     # the version in third_party/qql/VERSION
-tool/fetch-qql.sh 3.2.0               # a specific release
-tool/fetch-qql.sh 3.2.0 aarch64-macos # a specific platform
+tool/fetch-qql.sh                     # desktop library + data, from a release
+tool/build-qql-android.sh             # the Android libraries, from source
+python3 tool/gen-asset-list.py        # only after changing releases
 ```
 
-It takes the shared library and `sources/` only — not the 51 MB static
-library, which is for linking on iOS, nor the CLI binaries, which this app
-never runs.
+`fetch-qql.sh` takes a version and platform (`tool/fetch-qql.sh 3.2.0
+aarch64-macos`) and defaults to the version in `VERSION` and the platform of
+the machine. Releases are built with `vector` and `fulltext` on, so the ranked
+`*"…"` and `?"…"` forms work.
 
-Releases are built with `vector` and `fulltext` on, so the ranked forms
-`*"…"` and `?"…"` work. A library built without them refuses those with
-`QQL_UNSUPPORTED` rather than quietly matching something else.
+Android needs building rather than fetching, because releases ship desktop
+builds only. It needs the NDK, `cargo-ndk`, and the Rust Android targets; the
+script's header lists the two commands that install them.
 
-### Where it is looked for
+### How each platform finds it
 
-1. `$QQL_HOME` — an unpacked release bundle, to try another build in place
-2. `qql/` beside the executable — where a built app carries it
-3. `third_party/qql` — the checkout, for `flutter run` and the tests
+The data ships as Flutter assets, which behave differently per platform, and
+that difference is the whole design:
 
-`flutter build linux` installs the runtime into the bundle, so the built app
-runs from anywhere rather than only from a checkout.
+| | Library | Data |
+| --- | --- | --- |
+| Desktop | `qql/lib/` beside the executable, installed by CMake | read **in place** from `flutter_assets`, since there they are real files |
+| Android | `lib/<abi>/libqql.so` in the APK, opened by name | unpacked once from the APK into app storage, since there they are not |
+
+Nothing is stored twice: the desktop bundle carries one copy of the data, and
+the resolvers read it where it lies. `$QQL_HOME` overrides both, pointing at
+an unpacked release bundle.
 
 ## Run
 
@@ -130,6 +140,9 @@ It writes only under `~/.local/share`, and prints every file it created.
 | [lib/saved_lists.dart](lib/saved_lists.dart) | Lists, their items, and the JSON file behind them |
 | [lib/lists_ui.dart](lib/lists_ui.dart) | The lists drawer and the bookmark on a result |
 | [third_party/qql/](third_party/qql/) | The vendored QQL library and data |
-| [tool/fetch-qql.sh](tool/fetch-qql.sh) | Fetches that runtime from a release |
+| [lib/qql_install.dart](lib/qql_install.dart) | Finding the library and the data, and unpacking on Android |
+| [tool/fetch-qql.sh](tool/fetch-qql.sh) | Fetches the desktop runtime from a release |
+| [tool/build-qql-android.sh](tool/build-qql-android.sh) | Cross-compiles the library per Android ABI |
+| [tool/gen-asset-list.py](tool/gen-asset-list.py) | Regenerates the data asset list in pubspec |
 | [tool/make_icon.py](tool/make_icon.py) | Draws the icon for every platform |
 | [tool/install-desktop-entry.sh](tool/install-desktop-entry.sh) | User-level desktop entry, for the icon on Wayland |

@@ -127,17 +127,16 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
     COMPONENT Runtime)
 endif()
 
-# The QQL runtime — the shared library and the JSON data the resolvers read.
-# It goes beside the executable so the bundle runs anywhere, rather than only
-# from a checkout. tool/fetch-qql.sh puts it in third_party/qql; when it is
-# missing the app says so at startup instead of the build failing here.
-set(QQL_RUNTIME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/qql")
-if(EXISTS "${QQL_RUNTIME_DIR}/sources")
-  install(DIRECTORY "${QQL_RUNTIME_DIR}/"
+# The QQL shared library, beside the executable where the loader can find it.
+# The JSON data does not come through here — it ships as Flutter assets, which
+# on desktop are ordinary files in the bundle that the resolvers read directly.
+set(QQL_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/qql/lib")
+if(EXISTS "${QQL_LIB_DIR}")
+  install(DIRECTORY "${QQL_LIB_DIR}"
     DESTINATION "${CMAKE_INSTALL_PREFIX}/qql"
     COMPONENT Runtime)
 else()
   message(WARNING
-    "No QQL runtime at ${QQL_RUNTIME_DIR} — run tool/fetch-qql.sh. "
+    "No QQL library at ${QQL_LIB_DIR} — run tool/fetch-qql.sh. "
     "The app will build but will not resolve queries.")
 endif()

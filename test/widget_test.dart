@@ -150,6 +150,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const QqlExplorerApp());
+    // The runtime opens asynchronously now, so the body starts as the
+    // opening state and the sources arrive a frame later.
+    await tester.pumpAndSettle();
 
     // Every collection is on the page, not just the ones that happen to fit
     // on screen: the tiles are one Wrap, so they all build.

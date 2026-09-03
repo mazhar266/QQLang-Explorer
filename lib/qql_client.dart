@@ -67,8 +67,17 @@ class QqlClient {
   /// Why the library could not be opened, if it could not be.
   String? openError;
 
-  /// Library version, once open.
+  /// The QQL version to show, once open.
+  ///
+  /// QQ Lang versions by git tag. The number in Cargo.toml trails behind the
+  /// tags, and that number is what `qql_version()` returns — so a library
+  /// built from a working checkout under-reports. The tag on the checkout is
+  /// therefore the answer, and the library's own is the fallback.
   String? version;
+
+  /// What the loaded library reports for itself, which is not always [version]
+  /// — a stale build says so here.
+  String? libraryVersion;
 
   bool get isOpen => _qql != null;
 
@@ -92,11 +101,36 @@ class QqlClient {
 
     try {
       final qql = Qql.open(QqlPaths.sources, libraryPath: QqlPaths.library);
-      version = qql.version;
+      libraryVersion = qql.version;
+      version = _taggedVersion() ?? libraryVersion;
       _qql = qql;
       openError = null;
     } catch (e) {
       openError = 'Could not open the QQL library:\n\n$e';
+    }
+  }
+
+  /// The version tag on the QQ Lang checkout, without its leading `v`.
+  ///
+  /// Null when the checkout has no git, no tags, or no git at all on the
+  /// machine — none of which is worth an error, since the library can still
+  /// answer for itself.
+  static String? _taggedVersion() {
+    try {
+      final result = Process.runSync('git', [
+        '-C',
+        QqlPaths.home,
+        'describe',
+        '--tags',
+        '--abbrev=0',
+      ]);
+      if (result.exitCode != 0) return null;
+
+      final tag = '${result.stdout}'.trim();
+      if (tag.isEmpty) return null;
+      return tag.startsWith('v') ? tag.substring(1) : tag;
+    } catch (_) {
+      return null;
     }
   }
 

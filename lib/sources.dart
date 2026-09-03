@@ -196,39 +196,66 @@ class SourcesPanel extends StatelessWidget {
   /// Called with a code when one is chosen, to start a query with it.
   final void Function(String code) onPick;
 
+  /// Columns at a given content width. A phone gets one, a tablet or a
+  /// narrow window two, a desktop three — chosen so a tile never falls below
+  /// about 240 logical pixels, which is where the collection names start to
+  /// truncate.
+  static int columnsFor(double width) {
+    if (width >= 840) return 3;
+    if (width >= 520) return 2;
+    return 1;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
+    // Narrow screens cannot spare 24 either side.
+    final width = MediaQuery.sizeOf(context).width;
+    final pad = width < 520 ? 14.0 : 24.0;
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 40),
+      padding: EdgeInsets.fromLTRB(pad, 22, pad, 40),
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 10,
+          runSpacing: 2,
           children: [
             Text('Sources', style: theme.textTheme.titleMedium),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '${kSources.length} collections. Pick a code to start a '
-                'query with it.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
+            Text(
+              '${kSources.length} collections. Pick a code to start a '
+              'query with it.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            for (final source in kSources)
-              _SourceTile(source: source, onPick: onPick),
-          ],
+        // The tiles divide the row rather than being a fixed size, so a
+        // narrow window gets whole tiles instead of a column with the rest of
+        // the width left ragged beside it.
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const gap = 12.0;
+            final columns = columnsFor(constraints.maxWidth);
+            final tile =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final source in kSources)
+                  SizedBox(
+                    width: tile,
+                    child: _SourceTile(source: source, onPick: onPick),
+                  ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 20),
         Text(
@@ -266,7 +293,6 @@ class _SourceTile extends StatelessWidget {
           onTap: () => onPick(source.code),
           borderRadius: BorderRadius.circular(12),
           child: Ink(
-            width: 268,
             padding: const EdgeInsets.fromLTRB(12, 11, 14, 11),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),

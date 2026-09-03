@@ -160,6 +160,9 @@ class _ExplorerPageState extends State<ExplorerPage> {
 
   Widget _buildScaffold(BuildContext context) {
     final theme = Theme.of(context);
+    // On a phone the title bar has about 180 logical pixels between the lists
+    // button and the two actions, which the name alone fills.
+    final compact = MediaQuery.sizeOf(context).width < 520;
 
     return Scaffold(
       appBar: AppBar(
@@ -186,20 +189,26 @@ class _ExplorerPageState extends State<ExplorerPage> {
               filterQuality: FilterQuality.medium,
             ),
             const SizedBox(width: 10),
-            Text(
-              'QQL Explorer',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+            Flexible(
+              child: Text(
+                'QQL Explorer',
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-            const SizedBox(width: 10),
-            if (_client.version != null)
+            // The engine version is the first thing to go when the bar is
+            // narrow; it is still in About.
+            if (!compact && _client.version != null) ...[
+              const SizedBox(width: 10),
               Text(
                 'qql ${_client.version}',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+            ],
           ],
         ),
         actions: [
@@ -216,6 +225,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
             onPressed: () => showAboutQqlExplorer(
               context,
               engineVersion: _client.version,
+              libraryVersion: _client.libraryVersion,
             ),
           ),
           const SizedBox(width: 12),

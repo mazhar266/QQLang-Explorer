@@ -74,7 +74,13 @@ aside rather than overwritten.
 ## About
 
 The ⓘ button in the title bar shows the version, the QQL engine version, and
-who made it. The version there comes from
+who made it.
+
+QQL's version is its **git tag**, not the number in its `Cargo.toml` — that
+trails behind, and it is what a library built from a working checkout reports
+through `qql_version()`. So the tag on the checkout is read first and the
+library's own answer is the fallback. When the two disagree the About screen
+says so, which is the sign of a build older than the checkout. The version there comes from
 [kAppVersion](lib/about.dart) — a test reads `pubspec.yaml` and fails if the
 two drift apart, so there is only ever one number to change.
 

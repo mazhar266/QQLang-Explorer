@@ -165,6 +165,13 @@ class _ExplorerPageState extends State<ExplorerPage> {
         ),
         title: Row(
           children: [
+            Image.asset(
+              'assets/icon/app_icon_128.png',
+              width: 22,
+              height: 22,
+              filterQuality: FilterQuality.medium,
+            ),
+            const SizedBox(width: 10),
             Text(
               'QQL Explorer',
               style: theme.textTheme.titleMedium?.copyWith(

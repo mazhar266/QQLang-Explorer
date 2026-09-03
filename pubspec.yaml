@@ -60,6 +60,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # The Linux runner reads these out of the bundle at startup to set the
+  # window icon; tool/make_icon.py regenerates them.
+  assets:
+    - assets/icon/
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

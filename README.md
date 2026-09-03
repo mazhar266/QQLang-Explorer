@@ -64,6 +64,29 @@ It is written whole on each change, through a temporary file and a rename, so
 an interrupted write cannot truncate it. A file that will not parse is moved
 aside rather than overwritten.
 
+## Icon
+
+The mark is the Rub el Hizb, the eight-pointed star used in the mushaf itself
+to mark divisions of the text. [tool/make_icon.py](tool/make_icon.py) draws it
+and writes every platform's files; run it after changing anything there:
+
+```bash
+python3 tool/make_icon.py    # needs Pillow
+```
+
+The Linux runner loads the icon out of the Flutter bundle at startup. That
+reaches the switcher and the dock on X11 only — GTK3 has no window-icon
+protocol on Wayland, where GNOME matches a window to a desktop entry by
+application id instead. For the icon there, install a user-level entry:
+
+```bash
+flutter build linux
+tool/install-desktop-entry.sh              # --debug for the debug build
+tool/install-desktop-entry.sh --remove     # takes it all back
+```
+
+It writes only under `~/.local/share`, and prints every file it created.
+
 ## Layout
 
 | | |
@@ -75,3 +98,5 @@ aside rather than overwritten.
 | [lib/help_sheet.dart](lib/help_sheet.dart) | The syntax and source reference drawer |
 | [lib/saved_lists.dart](lib/saved_lists.dart) | Lists, their items, and the JSON file behind them |
 | [lib/lists_ui.dart](lib/lists_ui.dart) | The lists drawer and the bookmark on a result |
+| [tool/make_icon.py](tool/make_icon.py) | Draws the icon for every platform |
+| [tool/install-desktop-entry.sh](tool/install-desktop-entry.sh) | User-level desktop entry, for the icon on Wayland |

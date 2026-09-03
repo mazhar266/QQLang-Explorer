@@ -14,6 +14,42 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+// Give the window an icon.
+//
+// The images ride along in the Flutter bundle rather than being installed
+// system-wide, so they are found relative to the executable. Several sizes
+// are offered and the window manager picks; the small ones are drawn a
+// little heavier, so letting it choose beats making it scale.
+//
+// Note this reaches the switcher and the dock on X11 only. Wayland has no
+// window-icon protocol in GTK3, and GNOME instead matches the window to a
+// desktop entry by application id — see tool/install-desktop-entry.sh.
+static void set_window_icon(GtkWindow* window) {
+  g_autofree gchar* executable = g_file_read_link("/proc/self/exe", nullptr);
+  if (executable == nullptr) {
+    return;
+  }
+  g_autofree gchar* directory = g_path_get_dirname(executable);
+
+  const char* names[] = {"app_icon_512.png", "app_icon_128.png",
+                         "app_icon_48.png"};
+  GList* icons = nullptr;
+  for (gsize i = 0; i < G_N_ELEMENTS(names); i++) {
+    g_autofree gchar* path =
+        g_build_filename(directory, "data", "flutter_assets", "assets", "icon",
+                         names[i], nullptr);
+    GdkPixbuf* icon = gdk_pixbuf_new_from_file(path, nullptr);
+    if (icon != nullptr) {
+      icons = g_list_prepend(icons, icon);
+    }
+  }
+
+  if (icons != nullptr) {
+    gtk_window_set_icon_list(window, icons);
+    g_list_free_full(icons, g_object_unref);
+  }
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
@@ -52,6 +88,7 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "QQL Explorer");
   }
 
+  set_window_icon(window);
   gtk_window_set_default_size(window, 1280, 720);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();

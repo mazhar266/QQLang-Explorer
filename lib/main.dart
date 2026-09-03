@@ -7,8 +7,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'help_sheet.dart';
+import 'lists_ui.dart';
 import 'qql_client.dart';
 import 'result_card.dart';
+import 'saved_lists.dart';
 
 void main(List<String> args) {
   // `qqlang_explorer 'Q:2:255'` opens with that query already run.
@@ -30,10 +32,13 @@ const _examples = [
 ];
 
 class QqlExplorerApp extends StatelessWidget {
-  const QqlExplorerApp({super.key, this.initialQuery});
+  const QqlExplorerApp({super.key, this.initialQuery, this.lists});
 
   /// Query to run on launch, if one was given on the command line.
   final String? initialQuery;
+
+  /// Injectable so tests never touch the real saved-lists file.
+  final SavedLists? lists;
 
   ThemeData _theme(Brightness brightness) {
     final colors = ColorScheme.fromSeed(
@@ -54,15 +59,16 @@ class QqlExplorerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
-      home: ExplorerPage(initialQuery: initialQuery),
+      home: ExplorerPage(initialQuery: initialQuery, lists: lists),
     );
   }
 }
 
 class ExplorerPage extends StatefulWidget {
-  const ExplorerPage({super.key, this.initialQuery});
+  const ExplorerPage({super.key, this.initialQuery, this.lists});
 
   final String? initialQuery;
+  final SavedLists? lists;
 
   @override
   State<ExplorerPage> createState() => _ExplorerPageState();
@@ -74,7 +80,13 @@ class _ExplorerPageState extends State<ExplorerPage> {
   final _focus = FocusNode();
   final _scroll = ScrollController();
 
+  late final SavedLists _lists;
+  late final bool _ownsLists;
+
   QueryOutcome? _outcome;
+
+  /// The saved list being read instead of the results, if any.
+  String? _openListId;
 
   /// The query [_outcome] came from, which is not necessarily what the field
   /// holds now.
@@ -84,6 +96,10 @@ class _ExplorerPageState extends State<ExplorerPage> {
   void initState() {
     super.initState();
     _client.open();
+    // Only a store this page made is a store this page may dispose.
+    _ownsLists = widget.lists == null;
+    _lists = widget.lists ?? SavedLists();
+    _lists.load();
 
     // Assigned rather than routed through `_search`, so the results are
     // there on the first frame instead of after an empty one.
@@ -98,6 +114,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
   @override
   void dispose() {
     _client.dispose();
+    if (_ownsLists) _lists.dispose();
     _controller.dispose();
     _focus.dispose();
     _scroll.dispose();
@@ -113,6 +130,8 @@ class _ExplorerPageState extends State<ExplorerPage> {
     setState(() {
       _ranQuery = text;
       _outcome = _client.run(text);
+      // Searching is a request to see results, so it leaves a saved list.
+      _openListId = null;
     });
 
     if (_scroll.hasClients) _scroll.jumpTo(0);
@@ -120,14 +139,30 @@ class _ExplorerPageState extends State<ExplorerPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: _lists,
+    builder: (context, _) => _buildScaffold(context),
+  );
+
+  Widget _buildScaffold(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: theme.colorScheme.surface,
         surfaceTintColor: Colors.transparent,
-        titleSpacing: 24,
+        titleSpacing: 8,
+        leading: Builder(
+          builder: (context) => IconButton(
+            tooltip: 'Saved lists',
+            icon: Badge.count(
+              count: _lists.itemCount,
+              isLabelVisible: _lists.itemCount > 0,
+              child: const Icon(Icons.bookmarks_outlined),
+            ),
+            onPressed: Scaffold.of(context).openDrawer,
+          ),
+        ),
         title: Row(
           children: [
             Text(
@@ -156,6 +191,11 @@ class _ExplorerPageState extends State<ExplorerPage> {
           ),
           const SizedBox(width: 12),
         ],
+      ),
+      drawer: ListsDrawer(
+        lists: _lists,
+        openListId: _openListId,
+        onOpen: (id) => setState(() => _openListId = id),
       ),
       endDrawer: HelpDrawer(version: _client.version, home: QqlPaths.home),
       body: Center(
@@ -255,6 +295,9 @@ class _ExplorerPageState extends State<ExplorerPage> {
   }
 
   Widget _buildBody(ThemeData theme) {
+    final openList = _lists.byId(_openListId);
+    if (openList != null) return _buildSavedList(theme, openList);
+
     if (!_client.isOpen) {
       return _Notice(
         icon: Icons.link_off_rounded,
@@ -301,13 +344,102 @@ class _ExplorerPageState extends State<ExplorerPage> {
                       controller: _scroll,
                       padding: const EdgeInsets.fromLTRB(24, 4, 24, 40),
                       itemCount: records.length,
-                      itemBuilder: (context, i) =>
-                          ResultCard(record: records[i], index: i),
+                      itemBuilder: (context, i) => ResultCard(
+                        record: records[i],
+                        index: i,
+                        lists: _lists,
+                        query: _ranQuery,
+                      ),
                     ),
                   ),
                 ],
               ),
     };
+  }
+
+  Widget _buildSavedList(ThemeData theme, SavedList list) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SavedListHeader(
+          list: list,
+          onClose: () => setState(() => _openListId = null),
+        ),
+        Expanded(
+          child: list.items.isEmpty
+              ? _Notice(
+                  icon: Icons.bookmark_border_rounded,
+                  title: 'Nothing saved to "${list.name}" yet',
+                  detail:
+                      'Run a query, then use the bookmark on any result to '
+                      'put it here.',
+                  tone: theme.colorScheme.onSurfaceVariant,
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 40),
+                  itemCount: list.items.length,
+                  itemBuilder: (context, i) {
+                    final item = list.items[i];
+                    return ResultCard(
+                      record: item.record,
+                      index: i,
+                      lists: _lists,
+                      query: item.query,
+                      saved: (list: list, item: item),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The bar above a saved list, with the way back to the results.
+class _SavedListHeader extends StatelessWidget {
+  const _SavedListHeader({required this.list, required this.onClose});
+
+  final SavedList list;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Container(
+      color: colors.surfaceContainerHighest,
+      padding: const EdgeInsets.fromLTRB(12, 8, 20, 8),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Back to results',
+            icon: const Icon(Icons.arrow_back_rounded, size: 20),
+            onPressed: onClose,
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.folder_open_rounded, size: 18, color: colors.primary),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              list.name,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '${list.items.length} '
+            '${list.items.length == 1 ? 'item' : 'items'}',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

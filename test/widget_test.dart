@@ -2,10 +2,13 @@
 // shape, so what these pin is that each source's fields land in the right
 // place and that nothing is silently dropped.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qqlang_explorer/main.dart';
 import 'package:qqlang_explorer/result_card.dart';
+import 'package:qqlang_explorer/saved_lists.dart';
 
 void main() {
   group('RecordView', () {
@@ -104,5 +107,43 @@ void main() {
 
     expect(find.byType(TextField), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Search'), findsOneWidget);
+  });
+
+  testWidgets('a saved list can be opened, read and pruned', (tester) async {
+    // A temporary file, so a test run cannot touch real saved research.
+    final directory = Directory.systemTemp.createTempSync('qql_ui_test');
+    addTearDown(() => directory.deleteSync(recursive: true));
+
+    final store = SavedLists(file: File('${directory.path}/lists.json'));
+    final id = store.create('Study');
+    store.add(id, const {
+      'source': 'Q',
+      'collection': 'Quran',
+      'surah': 2,
+      'ayah': 255,
+      'ar': 'ٱللَّهُ',
+      'en': 'Allah, there is no deity except Him',
+    }, 'q:?"kursi"~5');
+
+    await tester.pumpWidget(QqlExplorerApp(lists: store));
+
+    await tester.tap(find.byTooltip('Saved lists'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 item'), findsOneWidget);
+
+    await tester.tap(find.text('Study'));
+    await tester.pumpAndSettle();
+
+    // The record renders, with the query that found it kept alongside.
+    // The query is deliberately not one of the example chips, which carry
+    // the same text and would match too.
+    expect(find.text('Allah, there is no deity except Him'), findsOneWidget);
+    expect(find.text('q:?"kursi"~5'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Remove from Study'));
+    await tester.pumpAndSettle();
+
+    expect(store.itemCount, 0);
+    expect(find.textContaining('Nothing saved'), findsOneWidget);
   });
 }

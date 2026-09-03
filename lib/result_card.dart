@@ -10,6 +10,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'lists_ui.dart';
+import 'saved_lists.dart';
+
 /// Fields this card lays out itself, and so must not repeat as chips.
 const _handled = {
   'source',
@@ -96,12 +99,28 @@ class RecordView {
 }
 
 class ResultCard extends StatelessWidget {
-  const ResultCard({super.key, required this.record, required this.index});
+  const ResultCard({
+    super.key,
+    required this.record,
+    required this.index,
+    required this.lists,
+    required this.query,
+    this.saved,
+  });
 
   final Map<String, dynamic> record;
 
   /// Position in the result list, shown so a hit can be referred to out loud.
   final int index;
+
+  final SavedLists lists;
+
+  /// The query behind this record, saved with it as provenance.
+  final String query;
+
+  /// Set when the card is showing a saved item rather than a search result.
+  /// The card then offers removal and says where the record came from.
+  final ({SavedList list, SavedItem item})? saved;
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +141,14 @@ class ResultCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Header(view: view, index: index),
+            _Header(
+              view: view,
+              index: index,
+              record: record,
+              lists: lists,
+              query: query,
+              saved: saved,
+            ),
             if (view.ar.isNotEmpty) ...[
               const SizedBox(height: 16),
               _ArabicText(view.ar),
@@ -159,6 +185,10 @@ class ResultCard extends StatelessWidget {
               const SizedBox(height: 14),
               _Extras(view.extras),
             ],
+            if (saved != null) ...[
+              const SizedBox(height: 14),
+              _Provenance(saved!.item),
+            ],
           ],
         ),
       ),
@@ -167,10 +197,21 @@ class ResultCard extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.view, required this.index});
+  const _Header({
+    required this.view,
+    required this.index,
+    required this.record,
+    required this.lists,
+    required this.query,
+    required this.saved,
+  });
 
   final RecordView view;
   final int index;
+  final Map<String, dynamic> record;
+  final SavedLists lists;
+  final String query;
+  final ({SavedList list, SavedItem item})? saved;
 
   @override
   Widget build(BuildContext context) {
@@ -228,6 +269,16 @@ class _Header extends StatelessWidget {
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
+        if (saved == null)
+          AddToListButton(lists: lists, record: record, query: query)
+        else
+          IconButton(
+            tooltip: 'Remove from ${saved!.list.name}',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.bookmark_remove_outlined, size: 18),
+            onPressed: () =>
+                lists.removeItem(saved!.list.id, saved!.item.key),
+          ),
         IconButton(
           tooltip: 'Copy',
           visualDensity: VisualDensity.compact,
@@ -381,4 +432,45 @@ class _Extras extends StatelessWidget {
 
   static String _short(String value) =>
       value.length <= 40 ? value : '${value.substring(0, 39)}…';
+}
+
+/// Where a saved record came from. Months after the fact, the query that
+/// found a verse is often the thing worth remembering about it.
+class _Provenance extends StatelessWidget {
+  const _Provenance(this.item);
+
+  final SavedItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final added = item.added;
+
+    return Row(
+      children: [
+        Icon(Icons.subdirectory_arrow_right_rounded,
+            size: 14, color: colors.outline),
+        const SizedBox(width: 6),
+        Flexible(
+          child: SelectableText(
+            item.query,
+            maxLines: 1,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11.5,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          'saved ${added.year}-${_two(added.month)}-${_two(added.day)}',
+          style: theme.textTheme.labelSmall?.copyWith(color: colors.outline),
+        ),
+      ],
+    );
+  }
+
+  static String _two(int value) => value.toString().padLeft(2, '0');
 }

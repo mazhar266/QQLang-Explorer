@@ -262,7 +262,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
           constraints: const BoxConstraints(maxWidth: 940),
           child: Column(
             children: [
-              _buildSearchBar(theme),
+              _buildSearchBar(theme, compact),
               const Divider(height: 1),
               Expanded(child: _buildBody(theme)),
             ],
@@ -272,9 +272,13 @@ class _ExplorerPageState extends State<ExplorerPage> {
     );
   }
 
-  Widget _buildSearchBar(ThemeData theme) {
+  Widget _buildSearchBar(ThemeData theme, bool compact) {
+    // Matches the inset the sources below use, so the field lines up with
+    // the tiles rather than sitting proud of them.
+    final side = compact ? 14.0 : 24.0;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+      padding: EdgeInsets.fromLTRB(side, 8, side, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -312,18 +316,36 @@ class _ExplorerPageState extends State<ExplorerPage> {
                   onChanged: (_) => setState(() {}),
                 ),
               ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: _client.isOpen ? _search : null,
-                icon: const Icon(Icons.search_rounded, size: 20),
-                label: const Text('Search'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 20,
+              SizedBox(width: compact ? 8 : 12),
+              // On a phone the word costs more width than the field can
+              // spare, and the icon says it. The tooltip carries the label
+              // for anyone reading the screen rather than looking at it.
+              if (compact)
+                Tooltip(
+                  message: 'Search',
+                  child: FilledButton(
+                    onPressed: _client.isOpen ? _search : null,
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 20,
+                      ),
+                    ),
+                    child: const Icon(Icons.search_rounded, size: 22),
+                  ),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: _client.isOpen ? _search : null,
+                  icon: const Icon(Icons.search_rounded, size: 20),
+                  label: const Text('Search'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 20,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 12),

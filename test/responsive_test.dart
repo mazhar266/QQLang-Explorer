@@ -51,6 +51,28 @@ void main() {
     expect(_tileWidth(tester), closeTo(320, 1));
   });
 
+  testWidgets('phone: the search button is the icon alone', (tester) async {
+    await _pumpAt(tester, 360, 740);
+
+    expect(find.widgetWithText(FilledButton, 'Search'), findsNothing);
+    // Still reachable by name for anyone reading the screen rather than
+    // looking at it.
+    expect(find.byTooltip('Search'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(FilledButton),
+        matching: find.byIcon(Icons.search_rounded),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('desktop: the search button keeps its label', (tester) async {
+    await _pumpAt(tester, 1280, 800);
+
+    expect(find.widgetWithText(FilledButton, 'Search'), findsOneWidget);
+  });
+
   testWidgets('phone: a record card holds together at 360', (tester) async {
     final directory = Directory.systemTemp.createTempSync('qql_narrow');
     addTearDown(() => directory.deleteSync(recursive: true));

@@ -49,7 +49,21 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 echo "Fetching $archive"
-curl -fSL --progress-bar -o "$work/$archive" "$url"
+if ! curl -fSL --progress-bar -o "$work/$archive" "$url"; then
+  echo >&2
+  echo "No release asset at $url" >&2
+  echo >&2
+  echo "The release workflow triggers on tags matching v* , so a tag pushed" >&2
+  echo "as '$version' rather than 'v$version' builds nothing. Either push" >&2
+  echo "the v-prefixed tag and wait for CI, or build the bundle locally:" >&2
+  echo >&2
+  echo "    cd /path/to/QQ-Lang" >&2
+  echo "    cargo build --release --features vector,fulltext" >&2
+  echo "    scripts/package.sh qql-$version-$platform" >&2
+  echo "    # then copy dist/qql-$version-$platform/{lib/libqql.so,sources}" >&2
+  echo "    # into third_party/qql/ and write $version to its VERSION" >&2
+  exit 1
+fi
 
 echo "Unpacking"
 case "$archive" in

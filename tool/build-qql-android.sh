@@ -83,8 +83,13 @@ for abi in "${ABIS[@]}"; do
 done
 
 # The whole point of the stamping above, so it is worth checking.
+#
+# grep -c rather than grep -q: -q exits at the first hit, which hands strings
+# a SIGPIPE, which pipefail then reports as a failed pipeline — warning about
+# a library that carries the version perfectly well. -c reads to the end.
 for abi in "${ABIS[@]}"; do
-  strings -a "$DEST/$abi/libqql.so" | grep -qF "$version" || {
+  hits="$(strings -a "$DEST/$abi/libqql.so" | grep -cF "$version" || true)"
+  if [[ "$hits" -eq 0 ]]; then
     echo "warning: $abi does not carry version $version" >&2
-  }
+  fi
 done

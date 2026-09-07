@@ -103,6 +103,12 @@ who made it.
 The QQL version shown there is what the bundled library reports for itself
 through `qql_version()`.
 
+> **The pinned version, 3.6.0, has no GitHub release.** Its tag was pushed as
+> `3.6.0` while the release workflow triggers on `v*`, so CI never built the
+> bundles and `tool/fetch-qql.sh` cannot reach them. The vendored runtime was
+> built from the checkout with `scripts/package.sh` instead. Pushing `v3.6.0`
+> would cut the release and let the fetch script work again.
+
 ## Icon
 
 The mark is the Rub el Hizb, the eight-pointed star used in the mushaf itself

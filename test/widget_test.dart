@@ -70,6 +70,62 @@ void main() {
       expect(view.extras.keys, containsAll(<String>['audio', 'repeat']));
     });
 
+    test('swallows the simplified spelling rather than chipping it', () {
+      // QQL 3.6 added `emlaei` to every ayah. It is deliberately not shown,
+      // but it must not fall through to the extras chips either — that would
+      // put a line of Arabic on screen cut off at 40 characters.
+      final view = RecordView(const {
+        'source': 'Q',
+        'collection': 'Quran',
+        'surah': 2,
+        'ayah': 2,
+        'ar': 'ذَٰلِكَ ٱلْكِتَٰبُ لَا رَيْبَ',
+        'emlaei': 'ذلك الكتاب لا ريب',
+        'en': 'This is the Book about which there is no doubt',
+      });
+
+      expect(view.extras, isEmpty, reason: 'not shown, and not a chip');
+      expect(
+        view.ar,
+        'ذَٰلِكَ ٱلْكِتَٰبُ لَا رَيْبَ',
+        reason: 'the mushaf text is what gets displayed, untouched',
+      );
+      // Still in the record, for anything that wants it later.
+      expect(view.raw['emlaei'], 'ذلك الكتاب لا ريب');
+    });
+
+    testWidgets('an unknown long field shows as a name, not a mangled chip', (
+      tester,
+    ) async {
+      // Whatever QQL adds next lands in the chips. A short value reads fine
+      // inline; a long one must not be sliced mid-word onto the card.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ResultCard(
+              index: 0,
+              lists: SavedLists(file: File('${Directory.systemTemp.path}/x')),
+              query: 'Q:1:1',
+              record: const {
+                'source': 'Q',
+                'collection': 'Quran',
+                'ar': 'بِسْمِ',
+                'en': 'In the name of Allah',
+                'repeat': 3,
+                'some_future_prose_field':
+                    'A value far longer than forty characters, which would '
+                    'otherwise be chopped mid-word.',
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('repeat 3'), findsOneWidget);
+      expect(find.text('some_future_prose_field'), findsOneWidget);
+      expect(find.textContaining('…'), findsNothing);
+    });
+
     test('carries the score on a ranked hit', () {
       final view = RecordView(const {
         'source': 'Q',

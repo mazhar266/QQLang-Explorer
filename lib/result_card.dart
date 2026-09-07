@@ -32,6 +32,10 @@ const _handled = {
   'chapter_title',
   'narrator',
   'note',
+  // Listed to be swallowed, not shown: QQL 3.6 gives every ayah the
+  // simplified spelling beside the mushaf text, and without this it would
+  // fall through to the chips as a line of Arabic cut off at 40 characters.
+  'emlaei',
 };
 
 /// A record's fields, read defensively — every one of them is optional.
@@ -419,7 +423,7 @@ class _Extras extends StatelessWidget {
                 border: Border.all(color: colors.outlineVariant),
               ),
               child: Text(
-                '${entry.key} ${_short('${entry.value}')}',
+                _label(entry.key, '${entry.value}'),
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: colors.onSurfaceVariant,
                 ),
@@ -430,8 +434,15 @@ class _Extras extends StatelessWidget {
     );
   }
 
-  static String _short(String value) =>
-      value.length <= 40 ? value : '${value.substring(0, 39)}…';
+  /// A chip for one field.
+  ///
+  /// Short values are metadata and read fine inline. A long one is prose —
+  /// a line of Arabic, a translation — and thirty-nine characters of it
+  /// followed by an ellipsis reads as damage rather than information. Those
+  /// show the field name alone; the tooltip still carries the whole value.
+  /// This is what keeps a field QQL adds tomorrow from disfiguring the card.
+  static String _label(String key, String value) =>
+      value.length <= 40 ? '$key $value' : key;
 }
 
 /// Where a saved record came from. Months after the fact, the query that
